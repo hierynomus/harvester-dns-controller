@@ -4,4 +4,4 @@ mod client;
 mod types;
 
 pub use client::RouterOsClient;
-pub use types::{RouterOsDnsRecord, RouterOsDnsRecordPut};
+pub use types::RouterOsDnsRecord;

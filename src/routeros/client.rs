@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 use tracing::{debug, info, warn};
 
-use super::types::{RouterOsDnsRecord, RouterOsDnsRecordPut};
+use super::types::RouterOsDnsRecord;
 use crate::config::Config;
 use crate::dns::DnsClient;
 
@@ -146,11 +146,13 @@ impl RouterOsClient {
 
     async fn create_record(&self, name: &str, address: &str, ttl: &str) -> Result<()> {
         let url = format!("{}/ip/dns/static", self.base_url);
-        let payload = RouterOsDnsRecordPut {
+        let payload = RouterOsDnsRecord {
             name: name.to_string(),
             address: address.to_string(),
             ttl: ttl.to_string(),
             comment: self.comment_tag.clone(),
+            match_subdomain: true,
+            ..Default::default()
         };
 
         let resp = self
@@ -174,11 +176,13 @@ impl RouterOsClient {
     async fn update_record(&self, id: &str, name: &str, address: &str, ttl: &str) -> Result<()> {
         // RouterOS REST: PATCH /{path}/{.id} to update
         let url = format!("{}/ip/dns/static/{}", self.base_url, id);
-        let payload = RouterOsDnsRecordPut {
+        let payload = RouterOsDnsRecord {
             name: name.to_string(),
             address: address.to_string(),
             ttl: ttl.to_string(),
             comment: self.comment_tag.clone(),
+            match_subdomain: true,
+            ..Default::default()
         };
 
         let resp = self
