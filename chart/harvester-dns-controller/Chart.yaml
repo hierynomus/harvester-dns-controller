@@ -1,0 +1,22 @@
+apiVersion: v2
+name: harvester-dns-controller
+description: |
+  Kubernetes operator that watches Harvester VirtualMachineNetworkConfig
+  resources and registers/deregisters DNS A records in a MikroTik RouterOS
+  DNS server via the RouterOS REST API.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - harvester
+  - routeros
+  - mikrotik
+  - dns
+  - controller
+  - kubernetes
+home: https://github.com/hierynomus/harvester-dns-controller
+sources:
+  - https://github.com/hierynomus/harvester-dns-controller
+maintainers:
+  - name: Jeroen
+    email: jeroen@geeko.me

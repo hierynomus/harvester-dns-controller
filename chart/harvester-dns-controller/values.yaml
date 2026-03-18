@@ -1,0 +1,85 @@
+# Default values for harvester-dns-controller.
+
+image:
+  repository: ghcr.io/hierynomus/harvester-dns-controller
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# Number of replicas. Keep at 1 — the operator is not leader-elected yet.
+replicaCount: 1
+
+# RouterOS connection settings.
+# The password must be provided via routeros.existingSecret or routeros.password.
+routeros:
+  # Hostname or IP address of the RouterOS device. Required if routeros.password is set.
+  host: ""
+  # Username to authenticate with the RouterOS REST API. Required if routeros.password is set.
+  username: ""
+  # Plain-text password (stored in a generated Secret). Prefer existingSecret.
+  password: ""
+  # Name of an existing Secret with key "password". Takes precedence over password.
+  existingSecret: ""
+  # Use HTTPS to reach the RouterOS REST API.
+  # Set false only for lab environments without TLS configured.
+  useTls: false
+  # Verify the RouterOS TLS certificate.
+  # Set false when using self-signed certs.
+  tlsVerify: false
+
+# DNS settings
+dns:
+  # Domain suffix appended to every VM name.
+  # e.g. with domain=lab.example.com, a VM named "node1" → node1.lab.example.com
+  domain: "lab.example.com"
+  # TTL written to every DNS record, in RouterOS format (e.g. 15m, 1h, 1d).
+  ttl: "15m"
+  # Comment tag on every managed record. Used to identify operator-owned entries.
+  commentTag: "managed-by=harvester-dns-controller"
+
+# Health endpoint port (liveness and readiness probes)
+healthPort: 8080
+
+# Log format: "" for human-readable, "json" for structured JSON
+logFormat: "json"
+# Log level directive passed to RUST_LOG
+logLevel: "harvester_dns_controller=info,warn"
+
+# Namespaces to watch. Leave empty to watch all namespaces.
+watchNamespaces: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Pod-level security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container-level security context
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Extra environment variables passed directly to the container
+extraEnv: []
+# - name: RUST_BACKTRACE
+#   value: "1"

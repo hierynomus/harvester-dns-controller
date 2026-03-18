@@ -1,0 +1,39 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "routeros-dns-operator.fullname" . }}
+  labels:
+    {{- include "routeros-dns-operator.labels" . | nindent 4 }}
+rules:
+  # Read VirtualMachineNetworkConfigs and their status across all namespaces
+  - apiGroups: ["network.harvesterhci.io"]
+    resources: ["virtualmachinenetworkconfigs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["network.harvesterhci.io"]
+    resources: ["virtualmachinenetworkconfigs/status"]
+    verbs: ["get"]
+  # Patch finalizers on VirtualMachineNetworkConfigs
+  - apiGroups: ["network.harvesterhci.io"]
+    resources: ["virtualmachinenetworkconfigs"]
+    verbs: ["patch", "update"]
+  # Events
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "routeros-dns-operator.fullname" . }}
+  labels:
+    {{- include "routeros-dns-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "routeros-dns-operator.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "routeros-dns-operator.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}

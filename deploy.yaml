@@ -1,0 +1,124 @@
+---
+# ServiceAccount for the operator
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: routeros-dns-operator
+  namespace: kube-system
+
+---
+# ClusterRole — read VirtualMachineNetworkConfigs across all namespaces
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: routeros-dns-operator
+rules:
+  - apiGroups: ["network.harvesterhci.io"]
+    resources: ["virtualmachinenetworkconfigs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["network.harvesterhci.io"]
+    resources: ["virtualmachinenetworkconfigs/status"]
+    verbs: ["get"]
+  # Required for kube leader election (optional but good practice)
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Events (for status reporting)
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: routeros-dns-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: routeros-dns-operator
+subjects:
+  - kind: ServiceAccount
+    name: routeros-dns-operator
+    namespace: kube-system
+
+---
+# Secret holding RouterOS credentials
+# In production, use Sealed Secrets or an external secret manager.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: routeros-credentials
+  namespace: kube-system
+type: Opaque
+stringData:
+  password: "changeme"   # replace with actual RouterOS API password
+
+---
+# ConfigMap for non-sensitive configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: routeros-dns-operator
+  namespace: kube-system
+data:
+  ROUTEROS_HOST: "192.168.1.1"
+  ROUTEROS_USERNAME: "dns-operator"
+  ROUTEROS_USE_TLS: "false"        # set true if RouterOS has www-ssl enabled
+  ROUTEROS_TLS_VERIFY: "false"     # set true with valid cert
+  DNS_DOMAIN: "lab.example.com"
+  DNS_TTL: "15m"
+  DNS_COMMENT_TAG: "managed-by=routeros-dns-operator"
+  LOG_FORMAT: "json"
+  RUST_LOG: "routeros_dns_operator=info"
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: routeros-dns-operator
+  namespace: kube-system
+  labels:
+    app: routeros-dns-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: routeros-dns-operator
+  template:
+    metadata:
+      labels:
+        app: routeros-dns-operator
+    spec:
+      serviceAccountName: routeros-dns-operator
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: operator
+          image: your-registry/routeros-dns-operator:latest  # update this
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          envFrom:
+            - configMapRef:
+                name: routeros-dns-operator
+          env:
+            - name: ROUTEROS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: routeros-credentials
+                  key: password
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
