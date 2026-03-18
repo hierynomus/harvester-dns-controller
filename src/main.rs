@@ -2,9 +2,10 @@ use std::sync::Arc;
 
 use futures::StreamExt;
 use kube::runtime::watcher;
+use kube::runtime::controller::Error as ControllerError;
 use kube::runtime::Controller;
 use kube::{Api, Client};
-use tracing::info;
+use tracing::{debug, info};
 
 use harvester_dns_controller::{
     garbage_collect_on_startup, reconcile, error_policy,
@@ -101,6 +102,15 @@ async fn main() -> anyhow::Result<()> {
                         namespace = %obj.namespace.as_deref().unwrap_or(""),
                         requeue_after = ?action,
                         "Reconcile OK"
+                    );
+                }
+                Err(ControllerError::ObjectNotFound(obj_ref)) => {
+                    // This is expected when an object is deleted (watcher sees deletion
+                    // after finalizer removal but object is already gone). Log at debug.
+                    debug!(
+                        name = %obj_ref.name,
+                        namespace = ?obj_ref.namespace,
+                        "Object already deleted, skipping reconcile"
                     );
                 }
                 Err(err) => {
