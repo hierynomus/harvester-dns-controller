@@ -1,24 +1,24 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "routeros-dns-operator.fullname" . }}
+  name: {{ include "harvester-dns-controller.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "routeros-dns-operator.labels" . | nindent 4 }}
+    {{- include "harvester-dns-controller.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "routeros-dns-operator.selectorLabels" . | nindent 6 }}
+      {{- include "harvester-dns-controller.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "routeros-dns-operator.selectorLabels" . | nindent 8 }}
+        {{- include "harvester-dns-controller.selectorLabels" . | nindent 8 }}
       annotations:
         # Force a rollout when the ConfigMap or Secret changes
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
-      serviceAccountName: {{ include "routeros-dns-operator.serviceAccountName" . }}
+      serviceAccountName: {{ include "harvester-dns-controller.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
@@ -35,7 +35,7 @@ spec:
             - name: ROUTEROS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ if .Values.routeros.existingSecret }}{{ .Values.routeros.existingSecret }}{{ else }}{{ include "routeros-dns-operator.fullname" . }}-credentials{{ end }}
+                  name: {{ if .Values.routeros.existingSecret }}{{ .Values.routeros.existingSecret }}{{ else }}{{ include "harvester-dns-controller.fullname" . }}-credentials{{ end }}
                   key: password
             - name: ROUTEROS_USE_TLS
               value: {{ .Values.routeros.useTls | quote }}

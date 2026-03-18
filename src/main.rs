@@ -21,7 +21,7 @@ async fn main() -> anyhow::Result<()> {
             .json()
             .with_env_filter(
                 tracing_subscriber::EnvFilter::from_default_env()
-                    .add_directive("routeros_dns_operator=info".parse()?)
+                    .add_directive("harvester_dns_controller=info".parse()?)
                     .add_directive("warn".parse()?)
             )
             .init();
@@ -29,7 +29,7 @@ async fn main() -> anyhow::Result<()> {
         tracing_subscriber::fmt()
             .with_env_filter(
                 tracing_subscriber::EnvFilter::from_default_env()
-                    .add_directive("routeros_dns_operator=info".parse()?)
+                    .add_directive("harvester_dns_controller=info".parse()?)
                     .add_directive("warn".parse()?)
             )
             .init();
@@ -37,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
 
     info!(
         version = env!("CARGO_PKG_VERSION"),
-        "routeros-dns-operator starting"
+        "harvester-dns-controller starting"
     );
 
     // Load operator config from environment variables
@@ -87,7 +87,11 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting controller loop");
 
-    Controller::new(api, watcher::Config::default())
+    // Configure watcher with reasonable timeouts and backoff
+    let watcher_config = watcher::Config::default()
+        .any_semantic();  // Use any semantic to handle both List and Watch modes gracefully
+
+    Controller::new(api, watcher_config)
         .run(reconcile, error_policy, ctx)
         .for_each(|result| async move {
             match result {
@@ -100,7 +104,8 @@ async fn main() -> anyhow::Result<()> {
                     );
                 }
                 Err(err) => {
-                    tracing::error!(error = %err, "Controller error");
+                    // Use Debug formatting to get full error chain
+                    tracing::warn!(error = ?err, "Controller stream error (will retry)");
                 }
             }
         })

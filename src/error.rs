@@ -1,4 +1,4 @@
-//! Error types for the routeros-dns-operator.
+//! Error types for the harvester-dns-controller.
 
 /// Errors that can occur during reconciliation of VirtualMachineNetworkConfig resources.
 #[derive(thiserror::Error, Debug)]

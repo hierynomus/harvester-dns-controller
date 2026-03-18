@@ -20,7 +20,7 @@ pub struct NetworkConfigEntry {
 #[serde(rename_all = "camelCase")]
 pub struct VmNetworkConfigSpec {
     pub vm_name: String,
-    pub network_config: Vec<NetworkConfigEntry>,
+    pub network_configs: Vec<NetworkConfigEntry>,
 }
 
 /// Per-NIC status entry, populated by the dhcp-controller once an IP is allocated.
@@ -29,6 +29,7 @@ pub struct VmNetworkConfigSpec {
 pub struct NetworkConfigStatus {
     pub mac_address: String,
     pub network_name: String,
+    #[serde(rename = "allocatedIPAddress")]
     pub allocated_ip_address: Option<String>,
     pub state: Option<String>,
 }
@@ -38,7 +39,7 @@ pub struct NetworkConfigStatus {
 #[serde(rename_all = "camelCase")]
 pub struct VmNetworkConfigStatus {
     #[serde(default)]
-    pub network_config: Vec<NetworkConfigStatus>,
+    pub network_configs: Vec<NetworkConfigStatus>,
 }
 
 /// The full VirtualMachineNetworkConfig custom resource.
@@ -55,7 +56,7 @@ pub struct VmNetworkConfigStatus {
 #[serde(rename_all = "camelCase")]
 pub struct VmNetworkConfigSpec_ {
     pub vm_name: String,
-    pub network_config: Vec<NetworkConfigEntry>,
+    pub network_configs: Vec<NetworkConfigEntry>,
 }
 
 // Type alias so the rest of the code can use a clean name.
@@ -78,7 +79,7 @@ mod tests {
         let json = r#"{
             "macAddress": "00:11:22:33:44:55",
             "networkName": "default/vlan1",
-            "allocatedIpAddress": "192.168.1.100",
+            "allocatedIPAddress": "192.168.1.100",
             "state": "Allocated"
         }"#;
         let status: NetworkConfigStatus = serde_json::from_str(json).unwrap();
@@ -99,20 +100,20 @@ mod tests {
     #[test]
     fn test_vmnetcfg_status_default() {
         let status = VmNetworkConfigStatus::default();
-        assert!(status.network_config.is_empty());
+        assert!(status.network_configs.is_empty());
     }
 
     #[test]
     fn test_vmnetcfg_spec_deserialize() {
         let json = r#"{
             "vmName": "my-test-vm",
-            "networkConfig": [
+            "networkConfigs": [
                 {"macAddress": "00:11:22:33:44:55", "networkName": "default/vlan1"}
             ]
         }"#;
         let spec: VmNetworkConfigSpec = serde_json::from_str(json).unwrap();
         assert_eq!(spec.vm_name, "my-test-vm");
-        assert_eq!(spec.network_config.len(), 1);
-        assert_eq!(spec.network_config[0].mac_address, "00:11:22:33:44:55");
+        assert_eq!(spec.network_configs.len(), 1);
+        assert_eq!(spec.network_configs[0].mac_address, "00:11:22:33:44:55");
     }
 }

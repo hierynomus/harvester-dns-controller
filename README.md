@@ -1,4 +1,4 @@
-# routeros-dns-operator
+# harvester-dns-controller
 
 A lightweight Kubernetes controller that watches Harvester
 `VirtualMachineNetworkConfig` resources and automatically registers/deregisters
@@ -11,7 +11,7 @@ Harvester DHCP controller
   → allocates IP to VM NIC
   → writes VirtualMachineNetworkConfig.status.networkConfig[].allocatedIPAddress
 
-routeros-dns-operator (this project)
+harvester-dns-controller (this project)
   → startup: garbage collects any stale DNS records from VMs deleted while down
   → watches VirtualMachineNetworkConfig across all namespaces
   → on VMNC created:   adds our finalizer, waits for IP allocation, creates A record
@@ -35,7 +35,7 @@ which matches the Harvester VirtualMachine name and therefore the RKE2/k3s node 
 ### Ownership tracking
 
 Every record created by this operator gets the `DNS_COMMENT_TAG` as its RouterOS
-comment (default `managed-by=routeros-dns-operator`). The operator only touches
+comment (default `managed-by=harvester-dns-controller`). The operator only touches
 records bearing this comment, leaving manually created entries untouched.
 
 ### Finalizer
@@ -68,7 +68,7 @@ RouterOS v7.1+ is required for the REST API:
 | `ROUTEROS_TLS_VERIFY` | `true`                               | Verify TLS cert                                |
 | `DNS_DOMAIN`          | *(required)*                         | Domain suffix, e.g. `lab.example.com`          |
 | `DNS_TTL`             | `15m`                                | TTL for records (RouterOS format)              |
-| `DNS_COMMENT_TAG`     | `managed-by=routeros-dns-operator`   | Comment tag on every managed record            |
+| `DNS_COMMENT_TAG`     | `managed-by=harvester-dns-controller`   | Comment tag on every managed record            |
 | `HEALTH_PORT`         | `8080`                               | Port for `/healthz` and `/readyz`              |
 | `WATCH_NAMESPACES`    | *(empty = all)*                      | Comma-separated namespace list                 |
 | `LOG_FORMAT`          | *(empty = human)*                    | Set `json` for structured logging              |
@@ -93,16 +93,16 @@ cargo run
 
 ```bash
 cargo build --release
-docker build -t your-registry/routeros-dns-operator:0.1.0 .
-docker push your-registry/routeros-dns-operator:0.1.0
+docker build -t your-registry/harvester-dns-controller:0.1.0 .
+docker push your-registry/harvester-dns-controller:0.1.0
 ```
 
 ## Deploying with Helm
 
 ```bash
-helm install routeros-dns-operator ./chart/routeros-dns-operator \
+helm install harvester-dns-controller ./chart/harvester-dns-controller \
   --namespace kube-system \
-  --set image.repository=your-registry/routeros-dns-operator \
+  --set image.repository=your-registry/harvester-dns-controller \
   --set image.tag=0.1.0 \
   --set routeros.host=192.168.1.1 \
   --set routeros.username=dns-operator \
@@ -122,7 +122,7 @@ src/
   controller.rs   — reconcile, finalizer management, startup GC, error policy
   routeros.rs     — RouterOS REST API client (CRUD /ip/dns/static)
   health.rs       — HTTP /healthz and /readyz endpoint
-chart/routeros-dns-operator/
+chart/harvester-dns-controller/
   Chart.yaml
   values.yaml
   templates/      — ServiceAccount, ClusterRole, ClusterRoleBinding, Secret, Deployment

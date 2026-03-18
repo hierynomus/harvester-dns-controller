@@ -1,14 +1,14 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "routeros-dns-operator.name" -}}
+{{- define "harvester-dns-controller.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
 */}}
-{{- define "routeros-dns-operator.fullname" -}}
+{{- define "harvester-dns-controller.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -24,9 +24,9 @@ Create a default fully qualified app name.
 {{/*
 Common labels
 */}}
-{{- define "routeros-dns-operator.labels" -}}
-helm.sh/chart: {{ include "routeros-dns-operator.name" . }}-{{ .Chart.Version }}
-{{ include "routeros-dns-operator.selectorLabels" . }}
+{{- define "harvester-dns-controller.labels" -}}
+helm.sh/chart: {{ include "harvester-dns-controller.name" . }}-{{ .Chart.Version }}
+{{ include "harvester-dns-controller.selectorLabels" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
@@ -34,17 +34,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "routeros-dns-operator.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "routeros-dns-operator.name" . }}
+{{- define "harvester-dns-controller.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "harvester-dns-controller.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 ServiceAccount name
 */}}
-{{- define "routeros-dns-operator.serviceAccountName" -}}
+{{- define "harvester-dns-controller.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "routeros-dns-operator.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "harvester-dns-controller.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}

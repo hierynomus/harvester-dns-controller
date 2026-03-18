@@ -74,6 +74,40 @@ impl RouterOsClient {
     // Private helpers
     // -----------------------------------------------------------------------
 
+    /// Find any record by name, regardless of comment tag.
+    async fn find_any_record_by_name(&self, name: &str) -> Result<Option<RouterOsDnsRecord>> {
+        let url = format!(
+            "{}/ip/dns/static?name={}",
+            self.base_url,
+            urlencoding::encode(name),
+        );
+
+        let resp = self
+            .http
+            .get(&url)
+            .basic_auth(&self.username, Some(&self.password))
+            .send()
+            .await
+            .context("GET /ip/dns/static (by name) failed")?;
+
+        let status = resp.status();
+
+        if status == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+
+        let body = resp.text().await.context("Failed to read response body")?;
+        if !status.is_success() {
+            anyhow::bail!("RouterOS returned {}: {}", status, body);
+        }
+
+        let records: Vec<RouterOsDnsRecord> =
+            serde_json::from_str(&body).context("Failed to parse DNS record")?;
+
+        Ok(records.into_iter().next())
+    }
+
+    /// Find a record by name that is managed by this operator (has our comment tag).
     async fn find_record_by_name(&self, name: &str) -> Result<Option<RouterOsDnsRecord>> {
         // RouterOS REST API supports query params for filtering
         let url = format!(
@@ -193,15 +227,26 @@ impl RouterOsClient {
 #[async_trait]
 impl DnsClient for RouterOsClient {
     async fn ensure_record(&self, fqdn: &str, ip: &str, ttl: &str) -> Result<()> {
-        let existing = self.find_record_by_name(fqdn).await?;
+        // Check for ANY record with this name (regardless of who owns it)
+        let existing = self.find_any_record_by_name(fqdn).await?;
 
         match existing {
-            Some(record) if record.address == ip => {
+            Some(record) if record.address == ip && record.comment == self.comment_tag => {
                 debug!(fqdn = %fqdn, ip = %ip, "DNS record already up to date");
                 Ok(())
             }
-            Some(record) => {
+            Some(record) if record.comment == self.comment_tag => {
+                // Owned by us but IP changed
                 info!(fqdn = %fqdn, old_ip = %record.address, new_ip = %ip, "Updating DNS record");
+                self.update_record(&record.id, fqdn, ip, ttl).await
+            }
+            Some(record) => {
+                // Record exists but not owned by us — take ownership
+                warn!(
+                    fqdn = %fqdn,
+                    old_comment = %record.comment,
+                    "Taking ownership of existing DNS record"
+                );
                 self.update_record(&record.id, fqdn, ip, ttl).await
             }
             None => {

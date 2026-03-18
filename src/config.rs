@@ -11,7 +11,7 @@ use serde::Deserialize;
 /// ROUTEROS_TLS_VERIFY=true          # set false for self-signed certs in lab
 /// DNS_DOMAIN=lab.example.com
 /// DNS_TTL=15m
-/// DNS_COMMENT_TAG=managed-by=routeros-dns-operator
+/// DNS_COMMENT_TAG=managed-by=harvester-dns-controller
 /// WATCH_NAMESPACES=default,harvester-system   # empty = all namespaces
 /// ```
 #[derive(Debug, Deserialize, Clone)]
@@ -105,7 +105,7 @@ fn default_ttl() -> String {
 }
 
 fn default_comment_tag() -> String {
-    "managed-by=routeros-dns-operator".to_string()
+    "managed-by=harvester-dns-controller".to_string()
 }
 
 #[cfg(test)]

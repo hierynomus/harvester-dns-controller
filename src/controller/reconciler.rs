@@ -109,9 +109,17 @@ pub(crate) fn first_allocated_ip(vmnetcfg: &VmNetworkConfig) -> Option<String> {
     vmnetcfg
         .status
         .as_ref()?
-        .network_config
+        .network_configs
         .iter()
         .find_map(|nc| {
+            // Print the network config status for debugging, since this is often the source of issues.
+            debug!(
+                mac = %nc.mac_address,
+                network = %nc.network_name,
+                allocated_ip = ?nc.allocated_ip_address,
+                state = ?nc.state,
+                "Checking network config status"
+            );
             let allocated = nc.state.as_deref().map(|s| s == "Allocated").unwrap_or(false);
             if allocated {
                 nc.allocated_ip_address.clone()
@@ -136,7 +144,7 @@ mod tests {
             },
             spec: crate::kubernetes::VmNetworkConfigSpec_ {
                 vm_name: "test-vm".to_string(),
-                network_config: vec![NetworkConfigEntry {
+                network_configs: vec![NetworkConfigEntry {
                     mac_address: "00:11:22:33:44:55".to_string(),
                     network_name: "default/vlan1".to_string(),
                 }],
@@ -154,7 +162,7 @@ mod tests {
     #[test]
     fn test_first_allocated_ip_none_when_empty_network_config() {
         let vmnetcfg = make_vmnetcfg(Some(VmNetworkConfigStatus {
-            network_config: vec![],
+            network_configs: vec![],
         }));
         assert_eq!(first_allocated_ip(&vmnetcfg), None);
     }
@@ -162,7 +170,7 @@ mod tests {
     #[test]
     fn test_first_allocated_ip_none_when_pending() {
         let vmnetcfg = make_vmnetcfg(Some(VmNetworkConfigStatus {
-            network_config: vec![NetworkConfigStatus {
+            network_configs: vec![NetworkConfigStatus {
                 mac_address: "00:11:22:33:44:55".to_string(),
                 network_name: "default/vlan1".to_string(),
                 allocated_ip_address: None,
@@ -175,7 +183,7 @@ mod tests {
     #[test]
     fn test_first_allocated_ip_returns_allocated() {
         let vmnetcfg = make_vmnetcfg(Some(VmNetworkConfigStatus {
-            network_config: vec![NetworkConfigStatus {
+            network_configs: vec![NetworkConfigStatus {
                 mac_address: "00:11:22:33:44:55".to_string(),
                 network_name: "default/vlan1".to_string(),
                 allocated_ip_address: Some("192.168.1.100".to_string()),
@@ -191,7 +199,7 @@ mod tests {
     #[test]
     fn test_first_allocated_ip_skips_non_allocated() {
         let vmnetcfg = make_vmnetcfg(Some(VmNetworkConfigStatus {
-            network_config: vec![
+            network_configs: vec![
                 NetworkConfigStatus {
                     mac_address: "00:11:22:33:44:55".to_string(),
                     network_name: "default/vlan1".to_string(),

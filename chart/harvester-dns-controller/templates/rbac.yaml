@@ -2,9 +2,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "routeros-dns-operator.fullname" . }}
+  name: {{ include "harvester-dns-controller.fullname" . }}
   labels:
-    {{- include "routeros-dns-operator.labels" . | nindent 4 }}
+    {{- include "harvester-dns-controller.labels" . | nindent 4 }}
 rules:
   # Read VirtualMachineNetworkConfigs and their status across all namespaces
   - apiGroups: ["network.harvesterhci.io"]
@@ -26,14 +26,14 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "routeros-dns-operator.fullname" . }}
+  name: {{ include "harvester-dns-controller.fullname" . }}
   labels:
-    {{- include "routeros-dns-operator.labels" . | nindent 4 }}
+    {{- include "harvester-dns-controller.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "routeros-dns-operator.fullname" . }}
+  name: {{ include "harvester-dns-controller.fullname" . }}
 subjects:
   - kind: ServiceAccount
-    name: {{ include "routeros-dns-operator.serviceAccountName" . }}
+    name: {{ include "harvester-dns-controller.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}

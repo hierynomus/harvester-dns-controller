@@ -39,7 +39,7 @@ pub async fn add_finalizer(
 
     api.patch(
         name,
-        &PatchParams::apply("routeros-dns-operator"),
+        &PatchParams::apply("harvester-dns-controller"),
         &Patch::Merge(&patch),
     )
     .await?;
@@ -70,7 +70,7 @@ pub async fn remove_finalizer(api: &Api<VmNetworkConfig>, name: &str) -> Result<
 
     api.patch(
         name,
-        &PatchParams::apply("routeros-dns-operator"),
+        &PatchParams::apply("harvester-dns-controller"),
         &Patch::Merge(&patch),
     )
     .await?;
@@ -95,7 +95,7 @@ mod tests {
             },
             spec: VmNetworkConfigSpec_ {
                 vm_name: "test-vm".to_string(),
-                network_config: vec![NetworkConfigEntry {
+                network_configs: vec![NetworkConfigEntry {
                     mac_address: "00:11:22:33:44:55".to_string(),
                     network_name: "default/vlan1".to_string(),
                 }],
