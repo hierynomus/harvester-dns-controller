@@ -8,9 +8,6 @@ pub enum ReconcileError {
 
     #[error("Kubernetes API error: {0}")]
     Kube(#[from] kube::Error),
-
-    #[error("Serialisation error: {0}")]
-    Json(#[from] serde_json::Error),
 }
 
 pub type Result<T, E = ReconcileError> = std::result::Result<T, E>;

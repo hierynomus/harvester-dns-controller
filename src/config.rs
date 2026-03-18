@@ -52,6 +52,12 @@ pub struct Config {
     /// If empty, watch all namespaces.
     #[serde(default)]
     pub watch_namespaces: String,
+
+    /// Whether to use the guestcluster.harvesterhci.io/name label to derive hostnames.
+    /// When true, VMs belonging to a Rancher guest cluster use the cluster name as hostname.
+    /// When false, always use the VM name (useful if guest cluster has its own DNS controller).
+    #[serde(default = "default_use_guest_cluster_label")]
+    pub dns_use_guest_cluster_label: bool,
 }
 
 impl Config {
@@ -108,6 +114,10 @@ fn default_comment_tag() -> String {
     "managed-by=harvester-dns-controller".to_string()
 }
 
+fn default_use_guest_cluster_label() -> bool {
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -123,6 +133,7 @@ mod tests {
             dns_ttl: "15m".to_string(),
             dns_comment_tag: "managed-by=test".to_string(),
             watch_namespaces: "".to_string(),
+            dns_use_guest_cluster_label: true,
         }
     }
 

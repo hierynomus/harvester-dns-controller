@@ -1,0 +1,35 @@
+//! Types for hostname claim management.
+
+/// Source of a hostname claim.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ClaimSource {
+    /// Claim from a VirtualMachineNetworkConfig.
+    VirtualMachine { name: String, namespace: String },
+    /// Claim from a Harvester LoadBalancer.
+    LoadBalancer { name: String, namespace: String },
+}
+
+impl ClaimSource {
+    /// Get the priority of this source. Higher wins.
+    pub fn priority(&self) -> u8 {
+        match self {
+            ClaimSource::VirtualMachine { .. } => 5,
+            ClaimSource::LoadBalancer { .. } => 10,
+        }
+    }
+
+    /// Get a human-readable type name.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            ClaimSource::VirtualMachine { .. } => "VirtualMachine",
+            ClaimSource::LoadBalancer { .. } => "LoadBalancer",
+        }
+    }
+}
+
+/// A claim on a hostname.
+#[derive(Debug, Clone)]
+pub struct HostnameClaim {
+    pub ip: String,
+    pub source: ClaimSource,
+}

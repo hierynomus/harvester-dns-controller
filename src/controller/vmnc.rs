@@ -8,9 +8,11 @@ use kube::{Api, ResourceExt};
 use tracing::{debug, error, info, warn};
 
 use super::finalizer::{add_finalizer, has_finalizer, remove_finalizer};
+use super::helpers::get_vm_labels;
 use super::Context;
 use crate::error::{ReconcileError, Result};
-use crate::kubernetes::{derive_hostname, VirtualMachine, VmNetworkConfig};
+use crate::kubernetes::{derive_hostname, VmNetworkConfig};
+use crate::registry::{ClaimSource, HostnameClaim};
 
 /// Called by the controller whenever a VirtualMachineNetworkConfig is created,
 /// updated, or deleted. Also called periodically (requeue) for drift detection.
@@ -22,7 +24,7 @@ pub async fn reconcile(vmnetcfg: Arc<VmNetworkConfig>, ctx: Arc<Context>) -> Res
     info!(name = %name, namespace = %namespace, "Reconciling VirtualMachineNetworkConfig");
 
     // Look up the parent VM to get its labels for hostname derivation
-    let vm_labels = get_vm_labels(&vmnetcfg, &ctx).await;
+    let vm_labels = get_vm_labels(&ctx.kube, &vmnetcfg).await;
 
     // Derive hostname using priority: annotation > guest cluster label > vm name
     let hostname = derive_hostname(
@@ -30,17 +32,21 @@ pub async fn reconcile(vmnetcfg: Arc<VmNetworkConfig>, ctx: Arc<Context>) -> Res
         vm_labels.as_ref(),
         ctx.config.dns_use_guest_cluster_label,
     );
-    let fqdn = format!("{}.{}", hostname, ctx.config.dns_domain);
     let vm_name = &vmnetcfg.spec.vm_name;
+
+    let claim_source = ClaimSource::VirtualMachine {
+        name: name.clone(),
+        namespace: namespace.clone(),
+    };
 
     // -----------------------------------------------------------------------
     // Deletion path — object has a deletionTimestamp, work through our finalizer
     // -----------------------------------------------------------------------
     if vmnetcfg.metadata.deletion_timestamp.is_some() {
         if has_finalizer(&vmnetcfg) {
-            info!(vm = %vm_name, fqdn = %fqdn, "VM is being deleted — removing DNS record");
-            ctx.dns
-                .delete_record_for_fqdn(&fqdn)
+            info!(vm = %vm_name, hostname = %hostname, "VM is being deleted — removing DNS claim");
+            ctx.registry
+                .remove(&hostname, &claim_source)
                 .await
                 .map_err(ReconcileError::RouterOs)?;
 
@@ -64,17 +70,22 @@ pub async fn reconcile(vmnetcfg: Arc<VmNetworkConfig>, ctx: Arc<Context>) -> Res
     // -----------------------------------------------------------------------
     // Extract the allocated IP from status.networkConfig
     //
-    // We register one A record per VM keyed on the VM name. If a VM has
-    // multiple NICs, we use the first one in "Allocated" state. Additional
-    // NICs on different networks can be extended here if needed.
+    // We register one A record per VM keyed on the hostname. If a VM has
+    // multiple NICs, we use the first one in "Allocated" state.
     // -----------------------------------------------------------------------
     let allocated_ip = first_allocated_ip(&vmnetcfg);
 
     match allocated_ip {
         Some(ip) => {
-            info!(vm = %vm_name, hostname = %hostname, fqdn = %fqdn, ip = %ip, "Ensuring DNS A record");
-            ctx.dns
-                .ensure_record(&fqdn, &ip, &ctx.config.dns_ttl)
+            info!(vm = %vm_name, hostname = %hostname, ip = %ip, "Upserting DNS claim");
+            ctx.registry
+                .upsert(
+                    &hostname,
+                    HostnameClaim {
+                        ip,
+                        source: claim_source,
+                    },
+                )
                 .await
                 .map_err(ReconcileError::RouterOs)?;
 
@@ -94,33 +105,6 @@ pub async fn reconcile(vmnetcfg: Arc<VmNetworkConfig>, ctx: Arc<Context>) -> Res
     }
 }
 
-/// Look up the parent VirtualMachine's labels via ownerReferences.
-async fn get_vm_labels(
-    vmnetcfg: &VmNetworkConfig,
-    ctx: &Context,
-) -> Option<std::collections::BTreeMap<String, String>> {
-    let namespace = vmnetcfg.namespace()?;
-    let owner_refs = vmnetcfg.metadata.owner_references.as_ref()?;
-
-    // Find the VirtualMachine owner reference
-    let vm_ref = owner_refs
-        .iter()
-        .find(|r| r.kind == "VirtualMachine" && r.api_version.starts_with("kubevirt.io/"))?;
-
-    let vm_api: Api<VirtualMachine> = Api::namespaced(ctx.kube.clone(), &namespace);
-
-    match vm_api.get(&vm_ref.name).await {
-        Ok(vm) => {
-            debug!(vm = %vm_ref.name, labels = ?vm.metadata.labels, "Found parent VM");
-            vm.metadata.labels
-        }
-        Err(e) => {
-            warn!(vm = %vm_ref.name, error = %e, "Failed to look up parent VM");
-            None
-        }
-    }
-}
-
 /// Called when reconcile returns an error. Returns an action that tells the
 /// controller when to retry — kube applies its own exponential backoff on top.
 pub fn error_policy(
@@ -131,7 +115,7 @@ pub fn error_policy(
     error!(
         name = %vmnetcfg.name_any(),
         error = %err,
-        "Reconcile failed"
+        "VMNC reconcile failed"
     );
     Action::requeue(Duration::from_secs(30))
 }
@@ -148,7 +132,6 @@ pub(crate) fn first_allocated_ip(vmnetcfg: &VmNetworkConfig) -> Option<String> {
         .network_configs
         .iter()
         .find_map(|nc| {
-            // Print the network config status for debugging, since this is often the source of issues.
             debug!(
                 mac = %nc.mac_address,
                 network = %nc.network_name,
@@ -239,20 +222,20 @@ mod tests {
                 NetworkConfigStatus {
                     mac_address: "00:11:22:33:44:55".to_string(),
                     network_name: "default/vlan1".to_string(),
-                    allocated_ip_address: Some("10.0.0.1".to_string()),
+                    allocated_ip_address: None,
                     state: Some("Pending".to_string()),
                 },
                 NetworkConfigStatus {
                     mac_address: "00:11:22:33:44:66".to_string(),
                     network_name: "default/vlan2".to_string(),
-                    allocated_ip_address: Some("192.168.1.100".to_string()),
+                    allocated_ip_address: Some("192.168.2.100".to_string()),
                     state: Some("Allocated".to_string()),
                 },
             ],
         }));
         assert_eq!(
             first_allocated_ip(&vmnetcfg),
-            Some("192.168.1.100".to_string())
+            Some("192.168.2.100".to_string())
         );
     }
 }
