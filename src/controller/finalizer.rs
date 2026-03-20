@@ -10,7 +10,7 @@ use crate::kubernetes::VmNetworkConfig;
 
 /// The finalizer we attach to every VMNC we manage. This ensures Kubernetes
 /// holds deletion open until we've had a chance to remove the DNS record.
-pub const FINALIZER: &str = "dns.routeros.geeko.me/cleanup";
+pub const FINALIZER: &str = "dns.geeko.me/cleanup";
 
 /// Check if the resource has our finalizer attached.
 pub fn has_finalizer(vmnetcfg: &VmNetworkConfig) -> bool {

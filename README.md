@@ -39,7 +39,7 @@ records bearing this comment, leaving manually created entries untouched.
 
 ### Finalizer
 
-The operator attaches `dns.routeros.geeko.me/cleanup` to every VMNC it manages.
+The operator attaches `dns.geeko.me/cleanup` to every VMNC it manages.
 When Kubernetes processes a deletion, it holds the object open until the operator
 has removed the DNS record and released the finalizer — no ghost records.
 

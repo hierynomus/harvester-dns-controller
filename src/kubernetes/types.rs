@@ -58,7 +58,7 @@ pub type VmNetworkConfig = VirtualMachineNetworkConfig;
 pub const GUEST_CLUSTER_LABEL: &str = "guestcluster.harvesterhci.io/name";
 
 /// Annotation key for overriding the DNS hostname.
-pub const HOSTNAME_ANNOTATION: &str = "dns.routeros.geeko.me/hostname";
+pub const HOSTNAME_ANNOTATION: &str = "dns.geeko.me/hostname";
 
 /// Minimal VirtualMachine type for querying labels.
 /// We only need metadata, so spec uses a catch-all for unknown fields.
@@ -132,7 +132,7 @@ pub fn lb_address(lb: &HarvesterLB) -> Option<&str> {
 /// Derive the DNS hostname for a VM.
 ///
 /// Priority:
-/// 1. Annotation `dns.routeros.geeko.me/hostname` on VMNC → use that
+/// 1. Annotation `dns.geeko.me/hostname` on VMNC → use that
 /// 2. Label `guestcluster.harvesterhci.io/name` on VM → use cluster name (if enabled)
 /// 3. Fall back to VM name
 pub fn derive_hostname(
