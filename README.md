@@ -15,16 +15,16 @@ harvester-dns-controller (this project)
 
 1. startup: garbage collects any stale DNS records from VMs deleted while down
 2. watches VirtualMachineNetworkConfig across all namespaces
-3. on VMNC created:   adds our finalizer, waits for IP allocation, creates A record
-4. on VMNC updated:   ensures A record is correct (idempotent)
-5. on VMNC deleted:   removes DNS record, removes finalizer, allows deletion
-6. periodic requeue:  every 10 min drift correction
+3. on VMNC created: adds our finalizer, waits for IP allocation, creates A record
+4. on VMNC updated: ensures A record is correct (idempotent)
+5. on VMNC deleted: removes DNS record, removes finalizer, allows deletion
+6. periodic requeue: every 10 min drift correction
 
 ### DNS record naming
 
 For a VM named `node1` with `DNS_DOMAIN=lab.example.com`:
 
-```
+```txt
 node1.lab.example.com  →  <allocated IP>   TTL 15m
 ```
 
@@ -58,22 +58,22 @@ RouterOS v7.1+ is required for the REST API:
 
 ## Configuration
 
-| Variable                     | Default                              | Description                                    |
-|------------------------------|--------------------------------------|------------------------------------------------|
-| `DNS_BACKEND`                | `routeros`                           | DNS backend: `routeros` or `glinet`            |
-| `DNS_HOST`                   | `192.168.1.1`                        | Router IP or hostname                          |
-| `DNS_USERNAME`               | `admin`                              | API username (RouterOS only)                   |
-| `DNS_PASSWORD`               | *(required)*                         | API/admin password                             |
-| `DNS_USE_TLS`                | `true`                               | Use HTTPS                                      |
-| `DNS_TLS_VERIFY`             | `true`                               | Verify TLS cert                                |
-| `DNS_DOMAIN`                 | *(required)*                         | Domain suffix, e.g. `lab.example.com`          |
-| `DNS_TTL`                    | `15m`                                | TTL for records (RouterOS format)              |
-| `DNS_COMMENT_TAG`            | `managed-by=harvester-dns-controller`| Comment tag on every managed record            |
-| `DNS_USE_GUEST_CLUSTER_LABEL`| `true`                               | Use Rancher cluster name as hostname for guest cluster VMs |
-| `HEALTH_PORT`                | `8080`                               | Port for `/healthz` and `/readyz`              |
-| `WATCH_NAMESPACES`           | *(empty = all)*                      | Comma-separated namespace list                 |
-| `LOG_FORMAT`                 | *(empty = human)*                    | Set `json` for structured logging              |
-| `RUST_LOG`                   | *(default)*                          | Log level filter                               |
+| Variable                      | Default                               | Description                                                |
+| ----------------------------- | ------------------------------------- | ---------------------------------------------------------- |
+| `DNS_BACKEND`                 | `routeros`                            | DNS backend: `routeros` or `glinet`                        |
+| `DNS_HOST`                    | `192.168.1.1`                         | Router IP or hostname                                      |
+| `DNS_USERNAME`                | `admin`                               | API username (RouterOS only)                               |
+| `DNS_PASSWORD`                | _(required)_                          | API/admin password                                         |
+| `DNS_USE_TLS`                 | `true`                                | Use HTTPS                                                  |
+| `DNS_TLS_VERIFY`              | `true`                                | Verify TLS cert                                            |
+| `DNS_DOMAIN`                  | _(required)_                          | Domain suffix, e.g. `lab.example.com`                      |
+| `DNS_TTL`                     | `15m`                                 | TTL for records (RouterOS format)                          |
+| `DNS_COMMENT_TAG`             | `managed-by=harvester-dns-controller` | Comment tag on every managed record                        |
+| `DNS_USE_GUEST_CLUSTER_LABEL` | `true`                                | Use Rancher cluster name as hostname for guest cluster VMs |
+| `HEALTH_PORT`                 | `8080`                                | Port for `/healthz` and `/readyz`                          |
+| `WATCH_NAMESPACES`            | _(empty = all)_                       | Comma-separated namespace list                             |
+| `LOG_FORMAT`                  | _(empty = human)_                     | Set `json` for structured logging                          |
+| `RUST_LOG`                    | _(default)_                           | Log level filter                                           |
 
 ## Running locally
 
