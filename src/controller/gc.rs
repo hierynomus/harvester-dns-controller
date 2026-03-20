@@ -35,7 +35,12 @@ pub async fn garbage_collect_on_startup(
         let namespace = vmnetcfg.namespace().unwrap_or_default();
 
         // Look up VM labels for hostname derivation
-        let vm_labels = get_vm_labels(kube, vmnetcfg).await;
+        // Only needed when guest cluster label feature is enabled
+        let vm_labels = if config.dns_use_guest_cluster_label {
+            get_vm_labels(kube, vmnetcfg).await
+        } else {
+            None
+        };
 
         let hostname = derive_hostname(vmnetcfg, vm_labels.as_ref(), config.dns_use_guest_cluster_label);
 

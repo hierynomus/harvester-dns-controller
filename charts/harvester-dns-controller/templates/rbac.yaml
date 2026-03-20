@@ -6,17 +6,20 @@ metadata:
   labels:
     {{- include "harvester-dns-controller.labels" . | nindent 4 }}
 rules:
-  # Read VirtualMachineNetworkConfigs and their status across all namespaces
+  # VirtualMachineNetworkConfigs: watch for changes, patch finalizers
   - apiGroups: ["network.harvesterhci.io"]
     resources: ["virtualmachinenetworkconfigs"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  {{- if .Values.dns.useGuestClusterLabel }}
+  # VirtualMachines: read labels for hostname derivation (only when useGuestClusterLabel is enabled)
+  - apiGroups: ["kubevirt.io"]
+    resources: ["virtualmachines"]
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["network.harvesterhci.io"]
-    resources: ["virtualmachinenetworkconfigs/status"]
-    verbs: ["get"]
-  # Patch finalizers on VirtualMachineNetworkConfigs
-  - apiGroups: ["network.harvesterhci.io"]
-    resources: ["virtualmachinenetworkconfigs"]
-    verbs: ["patch", "update"]
+  {{- end }}
+  # LoadBalancers: watch for changes, patch finalizers
+  - apiGroups: ["loadbalancer.harvesterhci.io"]
+    resources: ["loadbalancers"]
+    verbs: ["get", "list", "watch", "patch", "update"]
   # Events
   - apiGroups: [""]
     resources: ["events"]

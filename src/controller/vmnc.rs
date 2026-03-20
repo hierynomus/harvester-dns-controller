@@ -24,7 +24,12 @@ pub async fn reconcile(vmnetcfg: Arc<VmNetworkConfig>, ctx: Arc<Context>) -> Res
     info!(name = %name, namespace = %namespace, "Reconciling VirtualMachineNetworkConfig");
 
     // Look up the parent VM to get its labels for hostname derivation
-    let vm_labels = get_vm_labels(&ctx.kube, &vmnetcfg).await;
+    // Only needed when guest cluster label feature is enabled
+    let vm_labels = if ctx.config.dns_use_guest_cluster_label {
+        get_vm_labels(&ctx.kube, &vmnetcfg).await
+    } else {
+        None
+    };
 
     // Derive hostname using priority: annotation > guest cluster label > vm name
     let hostname = derive_hostname(
