@@ -1,13 +1,19 @@
 //! DNS client abstraction.
 //!
 //! This module defines the `DnsClient` trait which abstracts DNS record management.
-//! Different implementations can be provided for various DNS backends (RouterOS, etc.).
+//! Different implementations can be provided for various DNS backends.
 
 use anyhow::Result;
 use async_trait::async_trait;
 
+pub mod glinet;
+pub mod routeros;
+
 #[cfg(test)]
 pub mod mock;
+
+pub use glinet::GlInetClient;
+pub use routeros::RouterOsClient;
 
 /// Trait for DNS record management.
 ///

@@ -28,25 +28,29 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           env:
-            - name: ROUTEROS_HOST
-              value: {{ .Values.routeros.host | quote }}
-            - name: ROUTEROS_USERNAME
-              value: {{ .Values.routeros.username | quote }}
-            - name: ROUTEROS_PASSWORD
+            - name: DNS_BACKEND
+              value: {{ .Values.dns.backend | quote }}
+            - name: DNS_HOST
+              value: {{ .Values.dns.host | quote }}
+            - name: DNS_USERNAME
+              value: {{ .Values.dns.username | quote }}
+            - name: DNS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ if .Values.routeros.existingSecret }}{{ .Values.routeros.existingSecret }}{{ else }}{{ include "harvester-dns-controller.fullname" . }}-credentials{{ end }}
+                  name: {{ if .Values.dns.existingSecret }}{{ .Values.dns.existingSecret }}{{ else }}{{ include "harvester-dns-controller.fullname" . }}-credentials{{ end }}
                   key: password
-            - name: ROUTEROS_USE_TLS
-              value: {{ .Values.routeros.useTls | quote }}
-            - name: ROUTEROS_TLS_VERIFY
-              value: {{ .Values.routeros.tlsVerify | quote }}
+            - name: DNS_USE_TLS
+              value: {{ .Values.dns.useTls | quote }}
+            - name: DNS_TLS_VERIFY
+              value: {{ .Values.dns.tlsVerify | quote }}
             - name: DNS_DOMAIN
               value: {{ .Values.dns.domain | quote }}
             - name: DNS_TTL
               value: {{ .Values.dns.ttl | quote }}
             - name: DNS_COMMENT_TAG
               value: {{ .Values.dns.commentTag | quote }}
+            - name: DNS_USE_GUEST_CLUSTER_LABEL
+              value: {{ .Values.dns.useGuestClusterLabel | quote }}
             - name: HEALTH_PORT
               value: {{ .Values.healthPort | quote }}
             - name: LOG_FORMAT

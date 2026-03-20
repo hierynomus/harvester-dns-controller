@@ -4,8 +4,8 @@ use kube::Client;
 use tracing::info;
 
 use harvester_dns_controller::{
-    garbage_collect_on_startup, run_controllers,
-    health, Config, Context, HostnameRegistry, RouterOsClient,
+    garbage_collect_on_startup, run_controllers, health,
+    Config, Context, DnsBackend, DnsClient, GlInetClient, HostnameRegistry, RouterOsClient,
 };
 
 #[tokio::main]
@@ -40,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
     // Load operator config from environment variables
     let config = Config::from_env()?;
     info!(
-        routeros_host = %config.routeros_host,
+        dns_backend = %config.dns_backend,
         dns_domain = %config.dns_domain,
         dns_ttl = %config.dns_ttl,
         comment_tag = %config.dns_comment_tag,
@@ -48,8 +48,18 @@ async fn main() -> anyhow::Result<()> {
         "Configuration loaded"
     );
 
-    // Build RouterOS REST API client and wrap in HostnameRegistry
-    let dns = Arc::new(RouterOsClient::new(&config)?);
+    // Build DNS client based on configured backend
+    let dns: Arc<dyn DnsClient> = match config.dns_backend {
+        DnsBackend::RouterOs => {
+            info!(host = %config.dns_host, "Using RouterOS DNS backend");
+            Arc::new(RouterOsClient::new(&config)?)
+        }
+        DnsBackend::GlInet => {
+            info!(host = %config.dns_host, "Using GL.Inet DNS backend");
+            Arc::new(GlInetClient::new(&config)?)
+        }
+    };
+
     let registry = Arc::new(HostnameRegistry::new(
         dns.clone(),
         config.dns_domain.clone(),

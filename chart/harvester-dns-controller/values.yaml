@@ -8,26 +8,25 @@ image:
 # Number of replicas. Keep at 1 — the operator is not leader-elected yet.
 replicaCount: 1
 
-# RouterOS connection settings.
-# The password must be provided via routeros.existingSecret or routeros.password.
-routeros:
-  # Hostname or IP address of the RouterOS device. Required if routeros.password is set.
+# DNS backend and connection settings.
+# The password must be provided via dns.existingSecret or dns.password.
+dns:
+  # Backend to use: "routeros" or "glinet"
+  backend: "routeros"
+  # Hostname or IP address of the router.
   host: ""
-  # Username to authenticate with the RouterOS REST API. Required if routeros.password is set.
+  # Username for authentication (RouterOS only, ignored by GL.Inet).
   username: ""
   # Plain-text password (stored in a generated Secret). Prefer existingSecret.
   password: ""
   # Name of an existing Secret with key "password". Takes precedence over password.
   existingSecret: ""
-  # Use HTTPS to reach the RouterOS REST API.
+  # Use HTTPS to reach the router API.
   # Set false only for lab environments without TLS configured.
   useTls: false
-  # Verify the RouterOS TLS certificate.
+  # Verify the TLS certificate.
   # Set false when using self-signed certs.
   tlsVerify: false
-
-# DNS settings
-dns:
   # Domain suffix appended to every VM name.
   # e.g. with domain=lab.example.com, a VM named "node1" → node1.lab.example.com
   domain: "lab.example.com"
@@ -35,6 +34,10 @@ dns:
   ttl: "15m"
   # Comment tag on every managed record. Used to identify operator-owned entries.
   commentTag: "managed-by=harvester-dns-controller"
+  # Use the Rancher guest cluster label to derive hostnames.
+  # When true, VMs in a guest cluster use the cluster name instead of VM name.
+  # Set false if guest clusters have their own DNS controllers.
+  useGuestClusterLabel: true
 
 # Health endpoint port (liveness and readiness probes)
 healthPort: 8080

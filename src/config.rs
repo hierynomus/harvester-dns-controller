@@ -1,14 +1,57 @@
 use serde::Deserialize;
+use std::fmt;
+use std::str::FromStr;
+
+/// Supported DNS backends.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum DnsBackend {
+    #[default]
+    RouterOs,
+    GlInet,
+}
+
+impl fmt::Display for DnsBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DnsBackend::RouterOs => write!(f, "routeros"),
+            DnsBackend::GlInet => write!(f, "glinet"),
+        }
+    }
+}
+
+impl FromStr for DnsBackend {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "routeros" | "ros" | "mikrotik" => Ok(DnsBackend::RouterOs),
+            "glinet" | "gl-inet" | "gl.inet" => Ok(DnsBackend::GlInet),
+            _ => Err(format!("Unknown DNS backend: {}", s)),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for DnsBackend {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        DnsBackend::from_str(&s).map_err(serde::de::Error::custom)
+    }
+}
 
 /// Operator configuration, sourced from environment variables via `envy`.
 ///
 /// Example deployment env vars:
 ///
 /// ```text
-/// ROUTEROS_HOST=192.168.1.1
-/// ROUTEROS_USERNAME=dns-operator
-/// ROUTEROS_PASSWORD=secret
-/// ROUTEROS_TLS_VERIFY=true          # set false for self-signed certs in lab
+/// DNS_BACKEND=routeros   # or 'glinet'
+/// DNS_HOST=192.168.1.1
+/// DNS_USERNAME=dns-operator   # RouterOS only, ignored by GL.Inet
+/// DNS_PASSWORD=secret
+/// DNS_USE_TLS=true
+/// DNS_TLS_VERIFY=true          # set false for self-signed certs in lab
 /// DNS_DOMAIN=lab.example.com
 /// DNS_TTL=15m
 /// DNS_COMMENT_TAG=managed-by=harvester-dns-controller
@@ -16,26 +59,31 @@ use serde::Deserialize;
 /// ```
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
-    /// RouterOS host — IP or hostname
-    #[serde(default = "default_routeros_host")]
-    pub routeros_host: String,
+    /// DNS backend to use: `routeros` or `glinet`.
+    #[serde(default)]
+    pub dns_backend: DnsBackend,
 
-    /// RouterOS REST API username
-    #[serde(default = "default_routeros_username")]
-    pub routeros_username: String,
+    /// Router host — IP or hostname.
+    #[serde(default = "default_dns_host")]
+    pub dns_host: String,
 
-    /// RouterOS REST API password
-    pub routeros_password: String,
+    /// API username (RouterOS only, ignored by GL.Inet).
+    #[serde(default = "default_dns_username")]
+    pub dns_username: String,
+
+    /// API/admin password.
+    #[serde(default)]
+    pub dns_password: String,
+
+    /// Use HTTPS (true) or HTTP (false).
+    #[serde(default = "default_tls")]
+    pub dns_use_tls: bool,
 
     /// Verify TLS certificate. Set to false for self-signed lab certs.
     #[serde(default = "default_tls_verify")]
-    pub routeros_tls_verify: bool,
+    pub dns_tls_verify: bool,
 
-    /// Use HTTPS (true) or HTTP (false). HTTP only for local lab without certs.
-    #[serde(default = "default_tls")]
-    pub routeros_use_tls: bool,
-
-    /// Domain suffix appended to the VM name, e.g. "lab.example.com"
+    /// Domain suffix appended to the VM name, e.g. "lab.example.com".
     /// Result: <vm-name>.<domain>
     pub dns_domain: String,
 
@@ -65,10 +113,13 @@ impl Config {
         envy::from_env::<Config>().map_err(|e| anyhow::anyhow!("Config error: {}", e))
     }
 
-    /// Build the base URL for the RouterOS REST API.
-    pub fn routeros_base_url(&self) -> String {
-        let scheme = if self.routeros_use_tls { "https" } else { "http" };
-        format!("{}://{}/rest", scheme, self.routeros_host)
+    /// Build the base URL for the DNS backend API.
+    pub fn dns_base_url(&self) -> String {
+        let scheme = if self.dns_use_tls { "https" } else { "http" };
+        match self.dns_backend {
+            DnsBackend::RouterOs => format!("{}://{}/rest", scheme, self.dns_host),
+            DnsBackend::GlInet => format!("{}://{}", scheme, self.dns_host),
+        }
     }
 
     /// Build the FQDN for a VM.
@@ -90,11 +141,11 @@ impl Config {
     }
 }
 
-fn default_routeros_host() -> String {
+fn default_dns_host() -> String {
     "192.168.1.1".to_string()
 }
 
-fn default_routeros_username() -> String {
+fn default_dns_username() -> String {
     "admin".to_string()
 }
 
@@ -124,17 +175,28 @@ mod tests {
 
     fn test_config() -> Config {
         Config {
-            routeros_host: "192.168.1.1".to_string(),
-            routeros_username: "admin".to_string(),
-            routeros_password: "secret".to_string(),
-            routeros_tls_verify: true,
-            routeros_use_tls: true,
+            dns_backend: DnsBackend::RouterOs,
+            dns_host: "192.168.1.1".to_string(),
+            dns_username: "admin".to_string(),
+            dns_password: "secret".to_string(),
+            dns_use_tls: true,
+            dns_tls_verify: true,
             dns_domain: "lab.example.com".to_string(),
             dns_ttl: "15m".to_string(),
             dns_comment_tag: "managed-by=test".to_string(),
             watch_namespaces: "".to_string(),
             dns_use_guest_cluster_label: true,
         }
+    }
+
+    #[test]
+    fn test_dns_backend_from_str() {
+        assert_eq!("routeros".parse::<DnsBackend>().unwrap(), DnsBackend::RouterOs);
+        assert_eq!("ros".parse::<DnsBackend>().unwrap(), DnsBackend::RouterOs);
+        assert_eq!("mikrotik".parse::<DnsBackend>().unwrap(), DnsBackend::RouterOs);
+        assert_eq!("glinet".parse::<DnsBackend>().unwrap(), DnsBackend::GlInet);
+        assert_eq!("gl-inet".parse::<DnsBackend>().unwrap(), DnsBackend::GlInet);
+        assert!("invalid".parse::<DnsBackend>().is_err());
     }
 
     #[test]
@@ -150,16 +212,32 @@ mod tests {
     }
 
     #[test]
-    fn test_routeros_base_url_https() {
+    fn test_dns_base_url_routeros_https() {
         let config = test_config();
-        assert_eq!(config.routeros_base_url(), "https://192.168.1.1/rest");
+        assert_eq!(config.dns_base_url(), "https://192.168.1.1/rest");
     }
 
     #[test]
-    fn test_routeros_base_url_http() {
+    fn test_dns_base_url_routeros_http() {
         let mut config = test_config();
-        config.routeros_use_tls = false;
-        assert_eq!(config.routeros_base_url(), "http://192.168.1.1/rest");
+        config.dns_use_tls = false;
+        assert_eq!(config.dns_base_url(), "http://192.168.1.1/rest");
+    }
+
+    #[test]
+    fn test_dns_base_url_glinet_https() {
+        let mut config = test_config();
+        config.dns_backend = DnsBackend::GlInet;
+        config.dns_use_tls = true;
+        assert_eq!(config.dns_base_url(), "https://192.168.1.1");
+    }
+
+    #[test]
+    fn test_dns_base_url_glinet_http() {
+        let mut config = test_config();
+        config.dns_backend = DnsBackend::GlInet;
+        config.dns_use_tls = false;
+        assert_eq!(config.dns_base_url(), "http://192.168.1.1");
     }
 
     #[test]

@@ -1,25 +1,24 @@
 # harvester-dns-controller
 
 A lightweight Kubernetes controller that watches Harvester
-`VirtualMachineNetworkConfig` resources and automatically registers/deregisters
-DNS A records in a MikroTik RouterOS DNS server via the RouterOS REST API.
+`VirtualMachineNetworkConfig` and `LoadBalancer` resources and automatically
+registers/deregisters DNS A records in a MikroTik RouterOS or GL.Inet router.
 
 ## How it works
 
-```
 Harvester DHCP controller
-  → allocates IP to VM NIC
-  → writes VirtualMachineNetworkConfig.status.networkConfig[].allocatedIPAddress
+
+1. allocates IP to VM NIC
+2. writes VirtualMachineNetworkConfig.status.networkConfig[].allocatedIPAddress
 
 harvester-dns-controller (this project)
-  → startup: garbage collects any stale DNS records from VMs deleted while down
-  → watches VirtualMachineNetworkConfig across all namespaces
-  → on VMNC created:   adds our finalizer, waits for IP allocation, creates A record
-  → on VMNC updated:   ensures A record is correct (idempotent)
-  → on VMNC deleted:   removes DNS record, removes finalizer, allows deletion
-  → periodic requeue:  every 10 min drift correction
-  → health endpoint:   GET /healthz and /readyz on :8080
-```
+
+1. startup: garbage collects any stale DNS records from VMs deleted while down
+2. watches VirtualMachineNetworkConfig across all namespaces
+3. on VMNC created:   adds our finalizer, waits for IP allocation, creates A record
+4. on VMNC updated:   ensures A record is correct (idempotent)
+5. on VMNC deleted:   removes DNS record, removes finalizer, allows deletion
+6. periodic requeue:  every 10 min drift correction
 
 ### DNS record naming
 
@@ -59,32 +58,52 @@ RouterOS v7.1+ is required for the REST API:
 
 ## Configuration
 
-| Variable              | Default                              | Description                                    |
-|-----------------------|--------------------------------------|------------------------------------------------|
-| `ROUTEROS_HOST`       | `192.168.1.1`                        | RouterOS IP or hostname                        |
-| `ROUTEROS_USERNAME`   | `admin`                              | RouterOS API username                          |
-| `ROUTEROS_PASSWORD`   | *(required)*                         | RouterOS API password                          |
-| `ROUTEROS_USE_TLS`    | `true`                               | Use HTTPS                                      |
-| `ROUTEROS_TLS_VERIFY` | `true`                               | Verify TLS cert                                |
-| `DNS_DOMAIN`          | *(required)*                         | Domain suffix, e.g. `lab.example.com`          |
-| `DNS_TTL`             | `15m`                                | TTL for records (RouterOS format)              |
-| `DNS_COMMENT_TAG`     | `managed-by=harvester-dns-controller`   | Comment tag on every managed record            |
-| `HEALTH_PORT`         | `8080`                               | Port for `/healthz` and `/readyz`              |
-| `WATCH_NAMESPACES`    | *(empty = all)*                      | Comma-separated namespace list                 |
-| `LOG_FORMAT`          | *(empty = human)*                    | Set `json` for structured logging              |
-| `RUST_LOG`            | *(default)*                          | Log level filter                               |
+| Variable                     | Default                              | Description                                    |
+|------------------------------|--------------------------------------|------------------------------------------------|
+| `DNS_BACKEND`                | `routeros`                           | DNS backend: `routeros` or `glinet`            |
+| `DNS_HOST`                   | `192.168.1.1`                        | Router IP or hostname                          |
+| `DNS_USERNAME`               | `admin`                              | API username (RouterOS only)                   |
+| `DNS_PASSWORD`               | *(required)*                         | API/admin password                             |
+| `DNS_USE_TLS`                | `true`                               | Use HTTPS                                      |
+| `DNS_TLS_VERIFY`             | `true`                               | Verify TLS cert                                |
+| `DNS_DOMAIN`                 | *(required)*                         | Domain suffix, e.g. `lab.example.com`          |
+| `DNS_TTL`                    | `15m`                                | TTL for records (RouterOS format)              |
+| `DNS_COMMENT_TAG`            | `managed-by=harvester-dns-controller`| Comment tag on every managed record            |
+| `DNS_USE_GUEST_CLUSTER_LABEL`| `true`                               | Use Rancher cluster name as hostname for guest cluster VMs |
+| `HEALTH_PORT`                | `8080`                               | Port for `/healthz` and `/readyz`              |
+| `WATCH_NAMESPACES`           | *(empty = all)*                      | Comma-separated namespace list                 |
+| `LOG_FORMAT`                 | *(empty = human)*                    | Set `json` for structured logging              |
+| `RUST_LOG`                   | *(default)*                          | Log level filter                               |
 
 ## Running locally
 
+### Using RouterOS backend
+
 ```bash
 export KUBECONFIG=~/.kube/harvester.yaml
-export ROUTEROS_HOST=192.168.1.1
-export ROUTEROS_USERNAME=dns-operator
-export ROUTEROS_PASSWORD=secret
-export ROUTEROS_USE_TLS=false
-export ROUTEROS_TLS_VERIFY=false
+export DNS_BACKEND=routeros
+export DNS_HOST=192.168.1.1
+export DNS_USERNAME=dns-operator
+export DNS_PASSWORD=secret
+export DNS_USE_TLS=false
+export DNS_TLS_VERIFY=false
 export DNS_DOMAIN=lab.example.com
-export RUST_LOG=routeros_dns_operator=debug
+export RUST_LOG=harvester_dns_controller=debug
+
+cargo run
+```
+
+### Using GL.Inet backend
+
+```bash
+export KUBECONFIG=~/.kube/harvester.yaml
+export DNS_BACKEND=glinet
+export DNS_HOST=192.168.8.1
+export DNS_PASSWORD=secret
+export DNS_USE_TLS=false
+export DNS_TLS_VERIFY=false
+export DNS_DOMAIN=lab.example.com
+export RUST_LOG=harvester_dns_controller=debug
 
 cargo run
 ```
@@ -110,24 +129,4 @@ helm install harvester-dns-controller ./chart/harvester-dns-controller \
   --set routeros.useTls=false \
   --set routeros.tlsVerify=false \
   --set dns.domain=lab.example.com
-```
-
-## Project structure
-
-```
-src/
-  main.rs         — entrypoint: logging, startup GC, health endpoint, controller loop
-  config.rs       — configuration from environment
-  types.rs        — Harvester VMNC CRD types + RouterOS API types
-  controller.rs   — reconcile, finalizer management, startup GC, error policy
-  routeros.rs     — RouterOS REST API client (CRUD /ip/dns/static)
-  health.rs       — HTTP /healthz and /readyz endpoint
-chart/harvester-dns-controller/
-  Chart.yaml
-  values.yaml
-  templates/      — ServiceAccount, ClusterRole, ClusterRoleBinding, Secret, Deployment
-Cargo.toml
-Dockerfile
-deploy.yaml
-README.md
 ```

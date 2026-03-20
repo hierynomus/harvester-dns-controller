@@ -24,15 +24,15 @@ pub struct RouterOsClient {
 impl RouterOsClient {
     pub fn new(config: &Config) -> Result<Self> {
         let http = Client::builder()
-            .danger_accept_invalid_certs(!config.routeros_tls_verify)
+            .danger_accept_invalid_certs(!config.dns_tls_verify)
             .build()
             .context("Failed to build HTTP client")?;
 
         Ok(Self {
             http,
-            base_url: config.routeros_base_url(),
-            username: config.routeros_username.clone(),
-            password: config.routeros_password.clone(),
+            base_url: config.dns_base_url(),
+            username: config.dns_username.clone(),
+            password: config.dns_password.clone(),
             comment_tag: config.dns_comment_tag.clone(),
         })
     }
