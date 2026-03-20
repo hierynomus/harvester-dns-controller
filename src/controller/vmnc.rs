@@ -45,10 +45,13 @@ pub async fn reconcile(vmnetcfg: Arc<VmNetworkConfig>, ctx: Arc<Context>) -> Res
     if vmnetcfg.metadata.deletion_timestamp.is_some() {
         if has_finalizer(&vmnetcfg) {
             info!(vm = %vm_name, hostname = %hostname, "VM is being deleted — removing DNS claim");
-            ctx.registry
+            let result = ctx.registry
                 .remove(&hostname, &claim_source)
                 .await
                 .map_err(ReconcileError::RouterOs)?;
+
+            // Emit event for the DNS action
+            ctx.events.emit_for_action(&*vmnetcfg, &result.action, &result.fqdn, result.ip.as_deref()).await;
 
             remove_finalizer(&api, &name).await?;
             info!(name = %name, "Finalizer removed, deletion can proceed");
@@ -78,7 +81,7 @@ pub async fn reconcile(vmnetcfg: Arc<VmNetworkConfig>, ctx: Arc<Context>) -> Res
     match allocated_ip {
         Some(ip) => {
             info!(vm = %vm_name, hostname = %hostname, ip = %ip, "Upserting DNS claim");
-            ctx.registry
+            let result = ctx.registry
                 .upsert(
                     &hostname,
                     HostnameClaim {
@@ -88,6 +91,9 @@ pub async fn reconcile(vmnetcfg: Arc<VmNetworkConfig>, ctx: Arc<Context>) -> Res
                 )
                 .await
                 .map_err(ReconcileError::RouterOs)?;
+
+            // Emit event for the DNS action
+            ctx.events.emit_for_action(&*vmnetcfg, &result.action, &result.fqdn, result.ip.as_deref()).await;
 
             // Steady-state requeue: acts as a periodic health / drift check.
             Ok(Action::requeue(Duration::from_secs(600)))

@@ -13,6 +13,7 @@ use crate::config::Config;
 use crate::kubernetes::{HarvesterLB, VmNetworkConfig};
 use crate::registry::HostnameRegistry;
 
+use super::events::EventRecorder;
 use super::{lb, vmnc};
 
 /// Shared context passed into every reconcile call.
@@ -20,6 +21,7 @@ pub struct Context {
     pub config: Config,
     pub registry: Arc<HostnameRegistry>,
     pub kube: Client,
+    pub events: EventRecorder,
 }
 
 /// Run both VMNC and LoadBalancer controllers concurrently.

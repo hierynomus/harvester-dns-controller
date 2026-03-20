@@ -5,7 +5,7 @@ use tracing::info;
 
 use harvester_dns_controller::{
     garbage_collect_on_startup, run_controllers, health,
-    Config, Context, DnsBackend, DnsClient, GlInetClient, HostnameRegistry, RouterOsClient,
+    Config, Context, DnsBackend, DnsClient, EventRecorder, GlInetClient, HostnameRegistry, RouterOsClient,
 };
 
 #[tokio::main]
@@ -92,6 +92,7 @@ async fn main() -> anyhow::Result<()> {
     let ctx = Arc::new(Context {
         config,
         registry,
+        events: EventRecorder::new(kube_client.clone()),
         kube: kube_client,
     });
 

@@ -42,10 +42,13 @@ pub async fn reconcile(lb: Arc<HarvesterLB>, ctx: Arc<Context>) -> Result<Action
             cluster = %cluster_name,
             "LoadBalancer is being deleted — removing DNS claim"
         );
-        ctx.registry
+        let result = ctx.registry
             .remove(&cluster_name, &claim_source)
             .await
             .map_err(ReconcileError::RouterOs)?;
+
+        // Emit event for the DNS action
+        ctx.events.emit_for_action(&*lb, &result.action, &result.fqdn, result.ip.as_deref()).await;
 
         return Ok(Action::await_change());
     }
@@ -73,7 +76,7 @@ pub async fn reconcile(lb: Arc<HarvesterLB>, ctx: Arc<Context>) -> Result<Action
         "Upserting DNS claim for LoadBalancer"
     );
 
-    ctx.registry
+    let result = ctx.registry
         .upsert(
             &cluster_name,
             HostnameClaim {
@@ -83,6 +86,9 @@ pub async fn reconcile(lb: Arc<HarvesterLB>, ctx: Arc<Context>) -> Result<Action
         )
         .await
         .map_err(ReconcileError::RouterOs)?;
+
+    // Emit event for the DNS action
+    ctx.events.emit_for_action(&*lb, &result.action, &result.fqdn, result.ip.as_deref()).await;
 
     // Steady-state requeue for periodic refresh
     Ok(Action::requeue(Duration::from_secs(600)))

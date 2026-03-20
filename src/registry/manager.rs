@@ -8,7 +8,18 @@ use tracing::{debug, info};
 
 use crate::dns::DnsClient;
 
-use super::types::{ClaimSource, HostnameClaim};
+use super::types::{ClaimSource, DnsAction, HostnameClaim};
+
+/// Result of an upsert or remove operation.
+#[derive(Debug, Clone)]
+pub struct RegistryResult {
+    /// The action taken on the DNS record.
+    pub action: DnsAction,
+    /// The FQDN affected.
+    pub fqdn: String,
+    /// The IP address (if created/updated).
+    pub ip: Option<String>,
+}
 
 /// The hostname registry manages claims and updates DNS accordingly.
 ///
@@ -45,12 +56,17 @@ impl HostnameRegistry {
     ///
     /// If this source already has a claim, it's updated. Then the DNS record
     /// is updated to reflect the highest-priority claim.
-    pub async fn upsert(&self, hostname: &str, claim: HostnameClaim) -> anyhow::Result<()> {
+    ///
+    /// Returns information about what action was taken for event publishing.
+    pub async fn upsert(&self, hostname: &str, claim: HostnameClaim) -> anyhow::Result<RegistryResult> {
         let hostname = hostname.to_lowercase();
         let fqdn = self.fqdn(&hostname);
 
         let mut claims = self.claims.write().await;
         let entry = claims.entry(hostname.clone()).or_default();
+
+        // Find previous winner before making changes
+        let previous_winner = entry.iter().max_by_key(|c| c.source.priority()).cloned();
 
         // Remove existing claim from the same source (if any)
         entry.retain(|c| c.source != claim.source);
@@ -68,29 +84,56 @@ impl HostnameRegistry {
         let winner = entry.iter().max_by_key(|c| c.source.priority());
 
         if let Some(winner) = winner {
-            info!(
-                fqdn = %fqdn,
-                ip = %winner.ip,
-                source_kind = %winner.source.kind(),
-                "Ensuring DNS record for winning claim"
-            );
-            self.dns.ensure_record(&fqdn, &winner.ip, &self.ttl).await?;
-        }
+            // Determine the action based on previous state
+            let action = match &previous_winner {
+                None => DnsAction::Created,
+                Some(prev) if prev.ip != winner.ip => DnsAction::Updated,
+                Some(_) => DnsAction::Unchanged,
+            };
 
-        Ok(())
+            if action != DnsAction::Unchanged {
+                info!(
+                    fqdn = %fqdn,
+                    ip = %winner.ip,
+                    source_kind = %winner.source.kind(),
+                    action = ?action,
+                    "Ensuring DNS record for winning claim"
+                );
+            }
+
+            self.dns.ensure_record(&fqdn, &winner.ip, &self.ttl).await?;
+
+            Ok(RegistryResult {
+                action,
+                fqdn,
+                ip: Some(winner.ip.clone()),
+            })
+        } else {
+            // This shouldn't happen since we just added a claim
+            Ok(RegistryResult {
+                action: DnsAction::None,
+                fqdn,
+                ip: None,
+            })
+        }
     }
 
     /// Remove a claim from a specific source.
     ///
     /// If other claims remain, the DNS record is updated to the next highest
     /// priority claim. If no claims remain, the DNS record is deleted.
-    pub async fn remove(&self, hostname: &str, source: &ClaimSource) -> anyhow::Result<()> {
+    ///
+    /// Returns information about what action was taken for event publishing.
+    pub async fn remove(&self, hostname: &str, source: &ClaimSource) -> anyhow::Result<RegistryResult> {
         let hostname = hostname.to_lowercase();
         let fqdn = self.fqdn(&hostname);
 
         let mut claims = self.claims.write().await;
 
         if let Some(entry) = claims.get_mut(&hostname) {
+            // Find previous winner before removing
+            let previous_winner = entry.iter().max_by_key(|c| c.source.priority()).cloned();
+
             // Remove the claim from this source
             let had_claim = entry.iter().any(|c| &c.source == source);
             entry.retain(|c| &c.source != source);
@@ -109,22 +152,48 @@ impl HostnameRegistry {
                 claims.remove(&hostname);
                 info!(fqdn = %fqdn, "Deleting DNS record (no claims remain)");
                 self.dns.delete_record_for_fqdn(&fqdn).await?;
+
+                return Ok(RegistryResult {
+                    action: DnsAction::Deleted,
+                    fqdn,
+                    ip: previous_winner.map(|w| w.ip),
+                });
             } else {
                 // Find the new winner
                 let winner = entry.iter().max_by_key(|c| c.source.priority());
                 if let Some(winner) = winner {
-                    info!(
-                        fqdn = %fqdn,
-                        ip = %winner.ip,
-                        source_kind = %winner.source.kind(),
-                        "Updating DNS record to next winning claim"
-                    );
-                    self.dns.ensure_record(&fqdn, &winner.ip, &self.ttl).await?;
+                    // Determine if the winner changed
+                    let action = match &previous_winner {
+                        Some(prev) if prev.ip != winner.ip => {
+                            info!(
+                                fqdn = %fqdn,
+                                ip = %winner.ip,
+                                source_kind = %winner.source.kind(),
+                                "Updating DNS record to next winning claim"
+                            );
+                            DnsAction::Updated
+                        }
+                        _ => DnsAction::Unchanged,
+                    };
+
+                    if action != DnsAction::Unchanged {
+                        self.dns.ensure_record(&fqdn, &winner.ip, &self.ttl).await?;
+                    }
+
+                    return Ok(RegistryResult {
+                        action,
+                        fqdn,
+                        ip: Some(winner.ip.clone()),
+                    });
                 }
             }
         }
 
-        Ok(())
+        Ok(RegistryResult {
+            action: DnsAction::None,
+            fqdn,
+            ip: None,
+        })
     }
 
     /// Get a snapshot of all hostnames with claims (for garbage collection).

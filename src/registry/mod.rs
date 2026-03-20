@@ -6,5 +6,5 @@
 mod manager;
 mod types;
 
-pub use manager::HostnameRegistry;
-pub use types::{ClaimSource, HostnameClaim};
+pub use manager::{HostnameRegistry, RegistryResult};
+pub use types::{ClaimSource, DnsAction, HostnameClaim};

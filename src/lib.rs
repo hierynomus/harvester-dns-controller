@@ -14,8 +14,8 @@ pub mod registry;
 
 // Re-export commonly used types at the crate root
 pub use config::{Config, DnsBackend};
-pub use controller::{garbage_collect_on_startup, run_controllers, Context};
+pub use controller::{garbage_collect_on_startup, run_controllers, Context, EventRecorder};
 pub use dns::{DnsClient, GlInetClient, RouterOsClient};
 pub use error::{ReconcileError, Result};
 pub use kubernetes::{HarvesterLB, VmNetworkConfig};
-pub use registry::{ClaimSource, HostnameClaim, HostnameRegistry};
+pub use registry::{ClaimSource, DnsAction, HostnameClaim, HostnameRegistry, RegistryResult};
